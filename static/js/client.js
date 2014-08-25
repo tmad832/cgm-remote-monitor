@@ -271,7 +271,7 @@
             if (errorCode) {
                 var errorDisplay;
 
-                switch (parseInt(errorCode)) {
+                switch (errorCode) {
                     case 0:  errorDisplay = '??0'; break; //None
                     case 1:  errorDisplay = '?SN'; break; //SENSOR_NOT_ACTIVE
                     case 2:  errorDisplay = '??2'; break; //MINIMAL_DEVIATION
@@ -753,11 +753,6 @@
             // remove all "color != 'none'" code
             data = data.concat(d[1].map(function (obj) { return { date: new Date(obj.x), sgv: scaleBg(obj.y), color: 'none'} }));
             data = data.concat(d[2].map(function (obj) { return { date: new Date(obj.x), sgv: scaleBg(obj.y), color: 'red'} }));
-            
-            data.forEach(function (d) {
-                if (d.sgv < 39)
-                    d.color = "transparent";
-            })
 
             treatments = d[3];
             if (!isInitialData) {
@@ -777,7 +772,7 @@
             if (sgv > targetTop) {
                 color = 'yellow';
             } else if (sgv >= targetBottom && sgv <= targetTop) {
-                color = '#4cff00';
+                color = 'green';
             } else if (sgv < targetBottom) {
                 color = 'red';
             }
@@ -927,91 +922,64 @@
     //draw a compact visualization of a treatment (carbs, insulin)
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     function drawTreatment(treatment, scale, showValues) {
+        var carbs = treatment.carbs;
+        var insulin = treatment.insulin;
+        var CR = treatment.CR;
 
-        if (!treatment.CR) {
-            //plot a simple treatment point
-            console.info("plotting treatment", treatment);
-            var treatmentDots = focus.selectAll('treatment-dot')
-                .data(treatment)
-                .enter()
-                .append('g')
-                .attr('transform', 'translate(' + xScale(treatment.x) + ', ' + yScale(scaleBg(300)) + ')');
+        var R1 = Math.sqrt(Math.min(carbs, insulin * CR)) / scale,
+            R2 = Math.sqrt(Math.max(carbs, insulin * CR)) / scale,
+            R3 = R2 + 8 / scale;
 
-            //TODO: some d3 magic to get the treatments to display and show a tooltip
-        } else {
-            var carbs = treatment.carbs;
-            var insulin = treatment.insulin;
-            var CR = treatment.CR;
+        var arc_data = [
+            { 'element': '', 'color': '#9c4333', 'start': -1.5708, 'end': 1.5708, 'inner': 0, 'outer': R1 },
+            { 'element': '', 'color': '#d4897b', 'start': -1.5708, 'end': 1.5708, 'inner': R1, 'outer': R2 },
+            { 'element': '', 'color': 'transparent', 'start': -1.5708, 'end': 1.5708, 'inner': R2, 'outer': R3 },
+            { 'element': '', 'color': '#3d53b7', 'start': 1.5708, 'end': 4.7124, 'inner': 0, 'outer': R1 },
+            { 'element': '', 'color': '#5d72c9', 'start': 1.5708, 'end': 4.7124, 'inner': R1, 'outer': R2 },
+            { 'element': '', 'color': 'transparent', 'start': 1.5708, 'end': 4.7124, 'inner': R2, 'outer': R3 }
+        ];
 
-            var R1 = Math.sqrt(Math.min(carbs, insulin * CR)) / scale,
-                R2 = Math.sqrt(Math.max(carbs, insulin * CR)) / scale,
-                R3 = R2 + 8 / scale;
+        if (carbs < insulin * CR) arc_data[1].color = 'transparent';
+        if (carbs > insulin * CR) arc_data[4].color = 'transparent';
+        if (carbs > 0) arc_data[2].element = Math.round(carbs) + ' g';
+        if (insulin > 0) arc_data[5].element = Math.round(insulin * 10) / 10 + ' U';
 
-            var arc_data = [
-                { 'element': '', 'color': '#9c4333', 'start': -1.5708, 'end': 1.5708, 'inner': 0, 'outer': R1 },
-                { 'element': '', 'color': '#d4897b', 'start': -1.5708, 'end': 1.5708, 'inner': R1, 'outer': R2 },
-                { 'element': '', 'color': 'transparent', 'start': -1.5708, 'end': 1.5708, 'inner': R2, 'outer': R3 },
-                { 'element': '', 'color': '#3d53b7', 'start': 1.5708, 'end': 4.7124, 'inner': 0, 'outer': R1 },
-                { 'element': '', 'color': '#5d72c9', 'start': 1.5708, 'end': 4.7124, 'inner': R1, 'outer': R2 },
-                { 'element': '', 'color': 'transparent', 'start': 1.5708, 'end': 4.7124, 'inner': R2, 'outer': R3 }
-            ];
+        var arc = d3.svg.arc()
+            .innerRadius(function (d) { return 5 * d.inner; })
+            .outerRadius(function (d) { return 5 * d.outer; })
+            .endAngle(function (d) { return d.start; })
+            .startAngle(function (d) { return d.end; });
 
-            if (carbs < insulin * CR) arc_data[1].color = 'transparent';
-            if (carbs > insulin * CR) arc_data[4].color = 'transparent';
-            if (carbs > 0) arc_data[2].element = Math.round(carbs) + ' g';
-            if (insulin > 0) arc_data[5].element = Math.round(insulin * 10) / 10 + ' U';
+        var treatmentDots = focus.selectAll('treatment-dot')
+            .data(arc_data)
+            .enter()
+            .append('g')
+            .attr('transform', 'translate(' + xScale(treatment.x) + ', ' + yScale(scaleBg(treatment.y)) + ')');
 
-            var arc = d3.svg.arc()
-                .innerRadius(function (d) {
-                    return 5 * d.inner;
-                })
-                .outerRadius(function (d) {
-                    return 5 * d.outer;
-                })
-                .endAngle(function (d) {
-                    return d.start;
-                })
-                .startAngle(function (d) {
-                    return d.end;
-                });
+        var arcs = treatmentDots.append('path')
+            .attr('class', 'path')
+            .attr('fill', function (d, i) { return d.color; })
+            .attr('id', function (d, i) { return 's' + i; })
+            .attr('d', arc);
 
-            var treatmentDots = focus.selectAll('treatment-dot')
-                .data(arc_data)
-                .enter()
-                .append('g')
-                .attr('transform', 'translate(' + xScale(treatment.x) + ', ' + yScale(scaleBg(treatment.y)) + ')');
 
-            var arcs = treatmentDots.append('path')
+        // labels for carbs and insulin
+        if (showValues) {
+            var label = treatmentDots.append('g')
                 .attr('class', 'path')
-                .attr('fill', function (d, i) {
-                    return d.color;
+                .attr('id', 'label')
+                .style('fill', 'white');
+            label.append('text')
+                .style('font-size', 30 / scale)
+                .style('font-family', 'Arial')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '.35em')
+                .attr('transform', function (d) {
+                    d.outerRadius = d.outerRadius * 2.1;
+                    d.innerRadius = d.outerRadius * 2.1;
+                    return 'translate(' + arc.centroid(d) + ')';
                 })
-                .attr('id', function (d, i) {
-                    return 's' + i;
-                })
-                .attr('d', arc);
-
-
-            // labels for carbs and insulin
-            if (showValues) {
-                var label = treatmentDots.append('g')
-                    .attr('class', 'path')
-                    .attr('id', 'label')
-                    .style('fill', 'white');
-                label.append('text')
-                    .style('font-size', 30 / scale)
-                    .style('font-family', 'Arial')
-                    .attr('text-anchor', 'middle')
-                    .attr('dy', '.35em')
-                    .attr('transform', function (d) {
-                        d.outerRadius = d.outerRadius * 2.1;
-                        d.innerRadius = d.outerRadius * 2.1;
-                        return 'translate(' + arc.centroid(d) + ')';
-                    })
-                    .text(function (d) {
-                        return d.element;
-                    })
-            }
+                .text(function (d) { return d.element; })
         }
     }
 
@@ -1039,10 +1007,6 @@
         }
         var AR = [-0.723, 1.716];
         var dt = actual[1].date.getTime();
-        var predictedColor = 'blue';
-        if (browserSettings.theme == "colors") {
-            predictedColor = 'cyan';
-        }
         for (var i = 0; i < CONE.length; i++) {
             y = [y[1], AR[0] * y[0] + AR[1] * y[1]];
             dt = dt + FIVE_MINUTES;
@@ -1050,18 +1014,14 @@
             predicted[i * 2] = {
                 date: new Date(dt + 2000),
                 sgv: Math.max(BG_MIN, Math.min(BG_MAX, Math.round(BG_REF * Math.exp((y[1] - 2 * CONE[i]))))),
-                color: predictedColor
+                color: 'blue'
             };
             // Add 4000 ms so not same point as SG
             predicted[i * 2 + 1] = {
                 date: new Date(dt + 4000),
                 sgv: Math.max(BG_MIN, Math.min(BG_MAX, Math.round(BG_REF * Math.exp((y[1] + 2 * CONE[i]))))),
-                color: predictedColor
+                color: 'blue'
             };
-            predicted.forEach(function (d) {
-                if (d.sgv < BG_MIN)
-                    d.color = "transparent";
-            })
         }
         return predicted;
     }

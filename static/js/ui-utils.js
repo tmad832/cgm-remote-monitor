@@ -1,5 +1,4 @@
 var drawerIsOpen = false;
-var treatmentDrawerIsOpen = false;
 var browserStorage = $.localStorage;
 var defaultSettings = {
 	"units": "mg/dl",
@@ -160,37 +159,12 @@ function closeDrawer(callback) {
 	});
 	drawerIsOpen = false;
 }
-
 function openDrawer()  {
 	drawerIsOpen = true;
 	$("#container").animate({marginLeft: "-200px"}, 300);
 	$("#chartContainer").animate({marginLeft: "-200px"}, 300);
 	$("#drawer").css("display", "block");
 	$("#drawer").animate({right: "0"}, 300);
-}
-
-function closeTreatmentDrawer(callback) {
-	$("#container").animate({marginLeft: "0px"}, 400, callback);
-	$("#chartContainer").animate({marginLeft: "0px"}, 400);
-	$("#treatmentDrawer").animate({right: "-300px"}, 400, function() {
-		$("#treatmentDrawer").css("display", "none");
-	});
-	treatmentDrawerIsOpen = false;
-}
-function openTreatmentDrawer()  {
-	treatmentDrawerIsOpen = true;
-	$("#container").animate({marginLeft: "-300px"}, 400);
-	$("#chartContainer").animate({marginLeft: "-300px"}, 400);
-	$("#treatmentDrawer").css("display", "block");
-	$("#treatmentDrawer").animate({right: "0"}, 400);
-
-	$('#enteredBy').val(browserStorage.get("enteredBy") || '');
-	$('#eventType').val('BG Check');
-	$('#glucoseValue').val('');
-	$('#meter').prop('checked', true)
-	$('#carbsGiven').val('');
-	$('#insulinGiven').val('');
-	$('#notes').val('');
 }
 
 
@@ -248,33 +222,6 @@ function stretchStatusForToolbar(toolbarState){
 	}
 }
 
-function treatmentSubmit(event) {
-
-    var data = new Object();
-    data.enteredBy = document.getElementById("enteredBy").value;
-    data.eventType = document.getElementById("eventType").value;
-    data.glucose = document.getElementById("glucoseValue").value;
-    data.glucoseType = $('#treatment-form input[name=glucoseType]:checked').val();
-    data.carbs = document.getElementById("carbsGiven").value;
-    data.insulin = document.getElementById("insulinGiven").value;
-    data.notes = document.getElementById("notes").value;
-
-    var dataJson = JSON.stringify(data, null, " ");
-
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/v1/treatments/", true);
-    xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
-    xhr.send(dataJson);
-
-    browserStorage.set("enteredBy", data.enteredBy);
-
-    closeTreatmentDrawer();
-
-    if (event) {
-        event.preventDefault();
-    }
-}
-
 
 var querystring = getQueryParms();
 // var serverSettings = getServerSettings();
@@ -302,12 +249,6 @@ Dropdown.prototype.open = function (e) {
 
 
 $("#drawerToggle").click(function(event) {
-    //close other drawers
-    if(treatmentDrawerIsOpen) {
-		closeTreatmentDrawer();
-		treatmentDrawerIsOpen = false;
-	} 
-
 	if(drawerIsOpen) {
 		closeDrawer();
 		drawerIsOpen = false;
@@ -317,25 +258,6 @@ $("#drawerToggle").click(function(event) {
 	}
 	event.preventDefault();
 });
-
-$("#treatmentDrawerToggle").click(function(event) {
-    //close other drawers
-    if(drawerIsOpen) {
-		closeDrawer();
-		drawerIsOpen = false;
-	}
-
-	if(treatmentDrawerIsOpen) {
-		closeTreatmentDrawer();
-		treatmentDrawerIsOpen = false;
-	}  else {
-		openTreatmentDrawer();
-		treatmentDrawerIsOpen = true;
-	}
-	event.preventDefault();
-});
-
-$("#treatmentDrawer button").click(treatmentSubmit);
 
 $("#notification").click(function(event) {
 	closeNotification();
